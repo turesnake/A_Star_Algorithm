@@ -87,12 +87,15 @@ namespace csDelaunay {
 		// The equation of the edge: ax + by = c
 		public float a,b,c;
 
+
 		// The two Voronoi vertices that the edge connects (if one of them is null, the edge extends to infinity)
+		// 这组值很可能为 {0,0,0}
 		private Vertex leftVertex;
 		public Vertex LeftVertex {get{return leftVertex;}}
 
 		private Vertex rightVertex;
 		public Vertex RightVertex {get{return rightVertex;}}
+
 
 		public Vertex Vertex(LR leftRight) {
 			return leftRight == LR.LEFT ? leftVertex : rightVertex;
@@ -188,7 +191,8 @@ namespace csDelaunay {
 		 * within the bounds. If no part of the Edge falls within the bounds, leave clippedVertices null
 		 * @param bounds
 		 */ 
-		public void ClipVertices(Rectf bounds) {
+		public void ClipVertices(Rectf bounds) 
+		{
 			float xmin = bounds.x;
 			float ymin = bounds.y;
 			float xmax = bounds.right;

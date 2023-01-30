@@ -4,7 +4,8 @@ using System.Collections.Generic;
 
 namespace csDelaunay {
 
-	public class Site : ICoord {
+	public class Site : ICoord 
+	{
 
 		private static Queue<Site> pool = new Queue<Site>();
 
@@ -83,13 +84,19 @@ namespace csDelaunay {
 		private float weigth;
 		public float Weigth {get{return weigth;}}
 
+
 		// The edges that define this Site's Voronoi region:
 		private List<Edge> edges;
 		public List<Edge> Edges {get{return edges;}}
+
+
 		// which end of each edge hooks up with the previous edge in edges:
 		private List<LR> edgeOrientations;
+
+
 		// ordered list of points that define the region clipped to bounds:
 		private List<Vector2f> region;
+		
 
 		public Site(Vector2f p, int index, float weigth) {
 			Init(p, index, weigth);

@@ -49,11 +49,60 @@
     -- 想个办法剔除掉 Voronoi cell 的 不相邻 cell;
 
 
+# 借用第三方库: csDelaunay
+    -- 目前知道每个 cell 的相邻 cell 了;
+
+    -- 知道每个 cell 的一圈顶点了
+        意味着可以为每个 cell 手动制作一个 mesh 来渲染;
+        还能指定它的颜色...
+
+    
 
 
 
 
 
+# ++++++++++++++++++++++++++++ #
+#    第三方 csDelaunay 使用指南
+# ++++++++++++++++++++++++++++ #
+https://github.com/PouletFrit/csDelaunay
 
+
+#  Site  (class)
+    表示一个 cell, 
+    -- SiteIndex        -- idx
+    -- Coord            -- pos
+    -- NeighborSites()  -- 临近 cell
+    -- Region()         -- cell 所在区域
+    -- 
+
+# Edge (class)
+    -- LeftSite     -- 边一侧的 cell
+    -- RightSite    -- 边另一侧的 cell
+
+
+    -- edge.ClippedEnds[LR.LEFT]  -- 边的两个端点
+    -- edge.ClippedEnds[LR.RIGHT] -- 边的两个端点
+
+
+# 注意:
+    Site.Coord 是个奇怪的值...
+
+    Rectf bounds = new Rectf(0,0, 512, 512 );
+
+    设置这个的时候, 最好设置为 512, 不要去动;
+
+    然后 图会生成在 (0,0,0) 为 左下角, 边长为 512 的平面上;
+
+    然后手动这个坐标系 转换为我们想要的...
+
+
+
+# voronoi.Edges 混入的顺序....
+    首先有些边的 ClippedEnds 可能为 null, 比如当它在 map 边界时...
+
+    其次这些边的 方向是随机的;
+
+    
 
 

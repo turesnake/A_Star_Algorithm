@@ -105,7 +105,7 @@ public class AStarBrain : MonoBehaviour
             mapTotalSideLength.x / (float)mapEntNums.x,
             mapTotalSideLength.y / (float)mapEntNums.y
         );
-        Vector2 randomRadius = entSize * 0.45f; // 给 ent 留一圈边界;
+        Vector2 randomRadius = entSize * 0.35f; // 给 ent 留一圈边界;
 
         Vector3 mapLeftBottomPos = mapCenterPos - 0.5f * new Vector3( mapTotalSideLength.x, 0f, mapTotalSideLength.y ); 
 
@@ -162,10 +162,7 @@ public class AStarBrain : MonoBehaviour
     {
 
         List<GNode> toSearch = new List<GNode>(){ srcNode_ };
-
         List<GNode> processed = new List<GNode>(); // 处理过的
-
-
 
         while( toSearch.Count > 0 ) 
         {
