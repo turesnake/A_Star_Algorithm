@@ -1,4 +1,4 @@
 # A* search algorithm
 
-![Base](Docs/001.png)
+![Base](Docs/001.jpg)
 
