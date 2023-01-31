@@ -372,12 +372,12 @@ MonoBehaviour:
   debugBlueSphere: {fileID: 1388941169}
   debugGreenSphere: {fileID: 564059175}
   baseText: {fileID: 316897549}
-  polygonSideNum: 60
+  polygonSideNum: 70
   mapSideLength: 200
   entSideLength: 0
   entSideHalfLength: 0
-  perlinScale: 9
-  randomSeed: 123
+  perlinScale: 15
+  randomSeed: 122
   isShowTexts: 0
 --- !u!23 &121096973
 MeshRenderer:

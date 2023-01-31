@@ -3,6 +3,14 @@
 # ========================================== #
 
 
+# wiki:
+    https://en.wikipedia.org/wiki/A*_search_algorithm
+
+    Dijkstra's 会每个节点生成 最短路径, 所以它缺少了 从 dst 出发的 启发式信息 这一环;
+
+
+
+
 
 # ++++++++++++++++++++++++++++ #
 #    第三方 csDelaunay 使用指南

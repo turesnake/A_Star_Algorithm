@@ -42,7 +42,7 @@ public class VoronoiCellState
             VoronoiCellStateType.OnSearching, 
             new VoronoiCellState()
             {
-                backColor = new Color( 0.3f, 0.8f, 0.3f ), // 中绿
+                backColor = new Color( 0.3f, 0.7f, 0.15f ), // 中绿
                 textColor = new Color( 1f, 1f, 0f )
             }
         } ,
@@ -50,7 +50,7 @@ public class VoronoiCellState
             VoronoiCellStateType.Processed,
             new VoronoiCellState()
             {
-                backColor = new Color( 0.3f, 0.3f, 0.8f ), // 中蓝
+                backColor = new Color( 0.2f, 0.3f, 0.7f ), // 中蓝
                 textColor = new Color( 1f, 1f, 0f )
             }
         },
@@ -58,7 +58,8 @@ public class VoronoiCellState
             VoronoiCellStateType.IsPath,
             new VoronoiCellState() 
             {
-                backColor = new Color( 0.6f, 0f, 0f ), // 深红
+                //backColor = new Color( 0.8f, 0.1f, 0f ), // 深红
+                backColor = new Color( 1f, 0.5f, 0f ), // 亮橙
                 textColor = new Color( 1f, 1f, 1f )
             }
         }
