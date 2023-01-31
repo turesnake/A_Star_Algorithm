@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using csDelaunay;
 
+//using UnityEngine.UI;
+
+using TMPro;
+
 
 namespace AStar {
  
@@ -14,46 +18,63 @@ public class AStarBrain2 : MonoBehaviour
     public GameObject debugBlueSphere;
     public GameObject debugGreenSphere;
     public MeshFilter showQuad;
-
+    public TextMeshProUGUI baseText; 
  
-    // The number of polygons/sites we want
-    public int polygonNumber = 10;
-    public float worldMapRadius = 50f;
+
+    public int polygonSideNum = 10; // 地图中 随机点个数
+    public float mapSideLength = 50f; // 地图在 ws 中的边长 (米)
+    [HideInInspector] public float entSideLength; // 地图上每个格子的边长
+    [HideInInspector] public float entSideHalfLength;
+
+
+    public int perlinScale = 15; // 噪声碎裂程度, 值越大越碎
+    [SerializeField] int randomSeed = 123;
  
 
     VoronoiCell srcGNode = null;
     VoronoiCell dstGNode = null;
 
 
+    
+
     Dictionary<Vector2f,VoronoiCell> voronoiCellDic = new Dictionary<Vector2f, VoronoiCell>();// 图中所有节点
     List<VoronoiCell> foundedPath = new List<VoronoiCell>(); // 算法找出的路径
-    float innMapRadius = 512f; // !!! 不要修改此值 !!!
     float debugSphereRadius = 1.1f;
+
+    
+
+
+
+    Dictionary<Vector2f, Site> sites;
+    List<Edge> edges;
 
  
 
     void Start() 
     {
         Debug.Assert( debugSphere && debugBlueSphere && debugGreenSphere && showQuad );
+        Debug.Assert( baseText );
 
 
         // --- 设置本 quad transform ---:
-        transform.position = new Vector3( worldMapRadius * 0.5f, 0f, worldMapRadius * 0.5f );
-        transform.localScale = new Vector3( worldMapRadius, worldMapRadius, worldMapRadius );
+        transform.position = new Vector3( mapSideLength * 0.5f, 0f, mapSideLength * 0.5f );
+        transform.localScale = new Vector3( mapSideLength, mapSideLength, mapSideLength );
 
 
 
-        debugSphereRadius = worldMapRadius / Mathf.Sqrt(polygonNumber) * 0.3f;
+        debugSphereRadius = mapSideLength / (float)polygonSideNum * 0.3f;
         debugSphereRadius = Mathf.Min( debugSphereRadius, 1f );
  
         // --------------------------:
         // Create your sites (lets call that the center of your polygons)
-        List<Vector2f> points = CreateRandomPoint(); // todo 未来也可改成我们自己的...
+        List<Vector2f> points = CreateRandomPoint_2();
+
+
         // Create the bounds of the voronoi diagram
         // Use Rectf instead of Rect; it's a struct just like Rect and does pretty much the same,
         // but like that it allows you to run the delaunay library outside of unity (which mean also in another tread)
         // x,y 是左下角, 不是 center
-        Rectf bounds = new Rectf(0,0, innMapRadius, innMapRadius );
+        Rectf bounds = new Rectf(0,0, mapSideLength, mapSideLength );
         // There is a two ways you can create the voronoi diagram: with or without the lloyd relaxation
         // Here I used it with 2 iterations of the lloyd relaxation
         Voronoi voronoi = new Voronoi(points,bounds,5);
@@ -61,23 +82,20 @@ public class AStarBrain2 : MonoBehaviour
  
         // Now retreive the edges from it, and the new sites position if you used lloyd relaxtion
         // 整图中 cell 的数量;
-        Dictionary<Vector2f, Site> sites = voronoi.SitesIndexedByLocation;
+        sites = voronoi.SitesIndexedByLocation;
         // 整图中 边线的数量 (这些边被共用)
-        List<Edge> edges = voronoi.Edges;
+        edges = voronoi.Edges;
 
         // tpr debug:
         Debug.Log( "sites count = " + sites.Count );
         Debug.Log( "edges count = " + edges.Count );
 
 
-        
-
 
         int count = 0;        
         foreach( var s in sites ) 
         {
-            var cell = new VoronoiCell( this, s.Value );
-            //Debug.Log( "site idx = " + cell.idx );
+            var cell = new VoronoiCell( this, s.Value, false );
 
             if( count == 2 )
             {
@@ -87,8 +105,6 @@ public class AStarBrain2 : MonoBehaviour
             {
                 dstGNode = cell;
             }
-
-            // 这个库存在很大问题, 它居然存在 id值相同的 site....
 
             if( voronoiCellDic.ContainsKey( cell.site.Coord ) )
             {
@@ -101,7 +117,7 @@ public class AStarBrain2 : MonoBehaviour
         }
 
 
-        // neighbors:
+        //neighbors:
         foreach( var p in voronoiCellDic ) 
         {
             var cell = p.Value;
@@ -124,6 +140,12 @@ public class AStarBrain2 : MonoBehaviour
         if( Input.GetMouseButtonDown(0) ) 
         {
             Debug.Log("左键");
+
+            if( srcGNode!=null )
+            {
+                srcGNode.ShowBaseCell();
+            }
+
             srcGNode = HitCell();
 
             foreach( var e in foundedPath )
@@ -138,7 +160,7 @@ public class AStarBrain2 : MonoBehaviour
         }
 
 
-        if( srcGNode!=null && Input.GetMouseButtonDown(1) ) 
+        if( srcGNode!=null && Input.GetMouseButton(1) ) 
         {
             Debug.Log("右键");
             dstGNode = HitCell();
@@ -146,6 +168,11 @@ public class AStarBrain2 : MonoBehaviour
             if( dstGNode != null )
             {
                 dstGNode.ShowCell( new Color( 0f, 0.5f, 1f, 1f ) ); // 终点
+
+                foreach( var e in foundedPath )
+                {
+                    e.ShowBaseCell();
+                }
 
                 FindPath( srcGNode, dstGNode );
                 // 显示 path:
@@ -159,7 +186,9 @@ public class AStarBrain2 : MonoBehaviour
 
 
 
+
     // 使用 cell 碰撞区 来快速查找到目标, 不需要在 数千个 cells 里逐个排查;
+    // 其实还是有遍历开销, 不过这个开销让 unity 物理引擎来负责了...
     VoronoiCell HitCell() 
     {
         Camera camera = Camera.main; // todo: 未来改用 项目里的全局相机
@@ -180,26 +209,86 @@ public class AStarBrain2 : MonoBehaviour
 
 
 
-   
-    private List<Vector2f> CreateRandomPoint() 
+    private List<Vector2f> CreateRandomPoint_2() 
     {
-        // Use Vector2f, instead of Vector2
-        // Vector2f is pretty much the same than Vector2, but like you could run Voronoi in another thread
+
+        Random.InitState(randomSeed);
+
         List<Vector2f> points = new List<Vector2f>();
-        for (int i = 0; i < polygonNumber; i++) {
-            points.Add(new Vector2f(Random.Range(0,512), Random.Range(0,512)));
+
+        // 地图上单个方块的尺寸
+        entSideLength = mapSideLength / (float)polygonSideNum;
+        entSideHalfLength = entSideLength * 0.5f;
+        float randomRadius = entSideLength * 0.48f; // 给 ent 留一圈边界;
+
+        //Vector3 mapLeftBottomPos = mapCenterPos - 0.5f * new Vector3( mapSideLength, 0f, mapSideLength ); 
+        Vector3 mapLeftBottomPos = Vector3.zero;
+
+        // 生成节点:
+        for( int j=0; j<polygonSideNum; j++ ) 
+        {
+            for( int i=0; i<polygonSideNum; i++ ) 
+            {
+                // 运行在单个 cell 内生成 [0,3] 个点, 从而提高 map 的分布随机性 (暂时被关闭)
+                float random01 = Random.Range(0f,1f);
+                int innNum = 1;
+
+                if(random01 < 0.1f)
+                {
+                    innNum = 0;
+                }
+                else if( random01 > 0.7f && random01 < 0.95f )  
+                {
+                    innNum = 2;
+                }
+                else 
+                {
+                    innNum = 3;
+                }
+                innNum = 1; // todo 先手动关闭
+
+                // -----:
+                Vector3 centerPos = new Vector3(
+                    mapLeftBottomPos.x + (i + 0.5f) * entSideLength,
+                    0f,
+                    mapLeftBottomPos.z + (j + 0.5f) * entSideLength
+                );
+
+                for( int k=0; k<innNum; k++ )
+                {
+
+                    Vector3 randomOffset = new Vector3(
+                        Random.Range(-1f,1f) * randomRadius,
+                        0f,
+                        Random.Range(-1f,1f) * randomRadius
+                    );
+
+                    Vector3 newPos = centerPos + randomOffset;
+                    Vector2f posf = new Vector2f( newPos.x, newPos.z );
+                    points.Add(posf);
+                }
+            }
         }
- 
+
+        Debug.Log( "points count = " + points.Count );
         return points;
     }
 
 
+
+
+
+
+    // ===============================================================:
     // A* 算法本体
     void FindPath( VoronoiCell srcNode_, VoronoiCell dstNode_ ) 
     {
 
         List<VoronoiCell> toSearch = new List<VoronoiCell>(){ srcNode_ };
         List<VoronoiCell> processed = new List<VoronoiCell>(); // 处理过的
+
+        float minDis = float.MaxValue;
+        float maxDis = float.MinValue;
 
         while( toSearch.Count > 0 ) 
         {
@@ -218,14 +307,19 @@ public class AStarBrain2 : MonoBehaviour
 
             foreach( var neighbor in current.neighbors )
             {
-                if( processed.Contains(neighbor) == true ) 
+                if( neighbor.Walkable() == false || processed.Contains(neighbor) == true ) 
                 {
                     continue;
                 }
 
                 bool isNeighborInToSearch = toSearch.Contains( neighbor );
 
-                float costToNeighbor = current.G + CalcDistance(current,neighbor);
+                float costToNeighbor = current.G + Utils.CalcDistance(current,neighbor);
+
+                var ddis = Utils.CalcDistance(current,neighbor);
+                minDis = Mathf.Min( minDis, ddis );
+                maxDis = Mathf.Max( maxDis, ddis );
+    
 
                 if(     isNeighborInToSearch == false  
                     ||  costToNeighbor < neighbor.G
@@ -235,12 +329,14 @@ public class AStarBrain2 : MonoBehaviour
 
                     if( isNeighborInToSearch == false )
                     {
-                        neighbor.H = CalcDistance( neighbor, dstNode_ );
+                        neighbor.H = Utils.CalcDistance( neighbor, dstNode_ );
                         toSearch.Add( neighbor );
                     }
                 }
             }
         }
+
+        Debug.Log( "minDis = " + minDis + "; maxDis = " + maxDis );
 
         // 找到路径:
         foundedPath.Clear();
@@ -251,29 +347,14 @@ public class AStarBrain2 : MonoBehaviour
             ptr = ptr.previous;
         }
         foundedPath.Reverse();
-
         Debug.Log( "foundedPath count = " + foundedPath.Count );
-
     }
 
 
-    float CalcDistance( VoronoiCell a_, VoronoiCell b_ )
-    {
-        //var a = new Vector3(  );
-        return (a_.pos - b_.pos).magnitude;
-    }
-
-
-    public Vector3 Vector2f_2_Vector3( Vector2f a_ )
-    {
-        var ret = new Vector3( a_.x, 0f, a_.y );
-        ret = ret / innMapRadius * worldMapRadius;
-        return ret;
-    }
 
 
  
-    /*
+    
     // 原例中代替了 shader 的功能;
     // 
 
@@ -325,7 +406,7 @@ public class AStarBrain2 : MonoBehaviour
             }
         }
     }
-    */
+    
 
     
 
@@ -341,7 +422,7 @@ public class AStarBrain2 : MonoBehaviour
 
         // for( int i=0; i<foundedPath.Count-1; i++ ) // 剔除尾元素
         // {
-        //     Gizmos.DrawLine( foundedPath[i].pos, foundedPath[i+1].pos );
+        //     Gizmos.DrawLine( foundedPath[i].position, foundedPath[i+1].position );
         // }
 
     }

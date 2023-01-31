@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using csDelaunay;
 
+//using UnityEngine.UI;
+
+using TMPro;
+
 
 namespace AStar {
 
@@ -18,7 +22,7 @@ public class VoronoiCell
 
     public int idx;
     
-    public Vector3 pos;
+    public Vector3 position;
 
     // 将周围8个格子的 节点当作自己的邻居;
     public List<VoronoiCell> neighbors = new List<VoronoiCell>();
@@ -33,21 +37,7 @@ public class VoronoiCell
     public VoronoiCell previous 
     {
         get { return _previous; }
-        set 
-        { 
-            _previous = value; 
-
-            // 实际上, 每次寻路后, 所有 cell 都会设置自己的 previous...
-
-            // if( value == null )
-            // {
-            //     ShowBaseCell();
-            // }
-            // else 
-            // {
-            //     ShowCell( Color.red );
-            // }
-        }
+        set { _previous = value; }
     }
 
 
@@ -57,65 +47,107 @@ public class VoronoiCell
 
     public float pNoise; // [0f,1f]
 
+    Transform worldCanvasTF;
+
 
     MeshRenderer    mRenderer; // newQuad
     MeshFilter      mFilter; // newQuad 
     MeshCollider    mCollider; // newQuad 
 
+
+    TextMeshProUGUI text_G, text_H, text_F;
+
+
+
     static Transform parentTF = null;
+
 
     Color baseColor;
 
 
-    public VoronoiCell( AStarBrain2 brain_, Site site_ )
+    public VoronoiCell( AStarBrain2 brain_, Site site_, bool isBorder_ )
     {
         brain = brain_;
         site = site_;
-        pos = brain.Vector2f_2_Vector3(site.Coord);
+        position = Utils.Vector2f_2_Vector3(site.Coord);
         idx = site.SiteIndex;
-        //neighbors = site.NeighborSites();
-
         
-        CalcPerlinNoise();
+        CalcPerlinNoise(); 
 
-        G = pNoise * 100f; // tmp 
+        G = (1-pNoise) * 10f; // tmp 
         //Debug.Log( "G = " + G );
+        //G = 1f;
 
         GetSiteVertics();
+
+        CreateTexts();
     }
+
+    public bool Walkable()
+    {
+        return (pNoise > 0.5f);
+        //return true;
+    }
+
 
     void CalcPerlinNoise()
     {
-        float x = pos.x / brain.worldMapRadius;
-        float z = pos.z / brain.worldMapRadius;
+        float x = position.x / brain.mapSideLength;
+        float z = position.z / brain.mapSideLength;
 
-        float sclae1 = 3f;
-        float sclae2 = 7f;
-        float sclae3 = 11f;
-
+        float sclae1 = brain.perlinScale;
         float p1 = 1f - Mathf.PerlinNoise( x * sclae1, z * sclae1 );
-        float p2 = 1f - Mathf.PerlinNoise( x * sclae2, z * sclae2 );
-        float p3 = 1f - Mathf.PerlinNoise( x * sclae3, z * sclae3 );
-        p3 = p3 * p3;
-        float w1 = 0.3f;
-        float w2 = 0.0f;
-        float w3 = 0.8f;
 
-        pNoise = w3*p3 + w2*p2 + w1*p1;
-        //pNoise = Mathf.PerlinNoise( pos.x, pos.z );
-        //Debug.Log( "pNoise: " + pNoise );
+        // 疯狂的 smooth 来让曲线在 [0f,1f] 区间无限接近 0f 和 1f, 两级分明
+        for( int i=0; i<13; i++ )
+        {
+            p1 = Mathf.SmoothStep( 0f, 1f, p1 );
+        }
+
+        //p1 = Remap( 0f, 1f, -0.5f, 1.5f, p1 );
+        p1 = Mathf.Max( p1, 0f );
+        pNoise = p1;
     }
+
+    // 3个 ui text 元素
+    void CreateTexts() 
+    {
+        worldCanvasTF = brain.baseText.transform.parent;
+        
+        text_G = CreateSingleText( VoronoiCellTextData.ui_G_data );
+        text_H = CreateSingleText( VoronoiCellTextData.ui_H_data );
+        text_F = CreateSingleText( VoronoiCellTextData.ui_F_data );
+    }
+
+
+    TextMeshProUGUI CreateSingleText( VoronoiCellTextData textData_ )
+    {
+        Vector3 _pos = textData_.GetPos( position, brain.entSideHalfLength );
+
+        var go = Object.Instantiate( brain.baseText.gameObject, _pos, Quaternion.Euler( 90f,0f,0f ), worldCanvasTF );
+        go.transform.localScale *= textData_.localScale;
+
+        bool ret1 = go.TryGetComponent( out TextMeshProUGUI textComp );
+        Debug.Assert( ret1 );
+
+        textComp.fontSize *= textData_.fontScale * brain.entSideHalfLength;
+
+        return textComp;
+    }
+
+
+
+
+    
 
     
     void GetSiteVertics() 
     {
-
         if( parentTF == null )
         {
             var go = new GameObject("_Cells_");
             parentTF = go.transform;
         }
-
 
         // 准备数据:
         var edges =  site.Edges;
@@ -132,17 +164,17 @@ public class VoronoiCell
         cellComp.cell = this;
 
         // ----
-        List<Vector3> verticesA = new List<Vector3>(){ pos }; // 找出 testSite 的一圈顶点
+        List<Vector3> verticesA = new List<Vector3>(){ position }; // 找出 testSite 的一圈顶点
 
         foreach( var e in site.Edges ) 
         {            
             if (e.ClippedEnds == null) continue;
-            Vector3 ll = brain.Vector2f_2_Vector3(e.ClippedEnds[LR.LEFT]);
-            Vector3 rr = brain.Vector2f_2_Vector3(e.ClippedEnds[LR.RIGHT]);
+            Vector3 ll = Utils.Vector2f_2_Vector3(e.ClippedEnds[LR.LEFT]);
+            Vector3 rr = Utils.Vector2f_2_Vector3(e.ClippedEnds[LR.RIGHT]);
 
 
-            ll = Vector3.Lerp( ll, pos, 0.1f );
-            rr = Vector3.Lerp( rr, pos, 0.1f );
+            ll = Vector3.Lerp( ll, position, 0.1f );
+            rr = Vector3.Lerp( rr, position, 0.1f );
             ll.y = ll.y + 0.01f;
             rr.y = rr.y + 0.01f;
 
@@ -185,7 +217,8 @@ public class VoronoiCell
 
 
         // todo: 根据 weight 设置颜色:
-        baseColor = new Color( pNoise, pNoise, pNoise, 1f );
+        float c = Mathf.Lerp( pNoise, 1f, 0.3f );
+        baseColor = new Color( c, c, c, 1f );
         //var color = new Color( 0.8f, 0.6f, 0.2f, 1f );
         //material.SetColor( "_BaseColor", color );
         ShowBaseCell();
@@ -202,7 +235,6 @@ public class VoronoiCell
         mRenderer.material.SetColor( "_BaseColor", color_ );
     }
     
-
 
 
 }
