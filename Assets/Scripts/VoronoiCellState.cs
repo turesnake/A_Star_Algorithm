@@ -8,6 +8,7 @@ namespace AStar {
 
 public enum VoronoiCellStateType {
     Idle,
+    Src, // 起点
     OnSearching,
     Processed,
     IsPath
@@ -19,35 +20,58 @@ public enum VoronoiCellStateType {
 public class VoronoiCellState
 {
     
-    public static VoronoiCellState idleState = new VoronoiCellState(
-        new Color( 1f, 1f, 1f ),
-        new Color( 0f, 0f, 0f )
-    );
+    public static Dictionary<VoronoiCellStateType,VoronoiCellState> states = new Dictionary<VoronoiCellStateType, VoronoiCellState>()
+    {
+        {  
+            VoronoiCellStateType.Idle, 
+            new VoronoiCellState()
+            {
+                backColor = new Color( 1f, 1f, 1f ), // 无用
+                textColor = new Color( 0f, 0f, 0f )
+            } 
+        },
+        {  
+            VoronoiCellStateType.Src, 
+            new VoronoiCellState()
+            {
+                backColor = new Color( 0.1f, 0.5f, 0.2f ), // 深绿
+                textColor = new Color( 1f, 1f, 1f )
+            } 
+        },
+        {
+            VoronoiCellStateType.OnSearching, 
+            new VoronoiCellState()
+            {
+                backColor = new Color( 0.3f, 0.8f, 0.3f ), // 中绿
+                textColor = new Color( 1f, 1f, 0f )
+            }
+        } ,
+        {
+            VoronoiCellStateType.Processed,
+            new VoronoiCellState()
+            {
+                backColor = new Color( 0.3f, 0.3f, 0.8f ), // 中蓝
+                textColor = new Color( 1f, 1f, 0f )
+            }
+        },
+        {
+            VoronoiCellStateType.IsPath,
+            new VoronoiCellState() 
+            {
+                backColor = new Color( 0.6f, 0f, 0f ), // 深红
+                textColor = new Color( 1f, 1f, 1f )
+            }
+        }
+    };
 
-    public static VoronoiCellState onSearchingState = new VoronoiCellState(
-        new Color( 0.1f, 0.7f, 0.1f ), // 中绿
-        new Color( 0f, 0f, 0f )
-    );
 
-    public static VoronoiCellState processedState = new VoronoiCellState(
-        new Color( 0.1f, 0.1f, 0.6f ), // 中蓝
-        new Color( 1f, 1f, 1f )
-    );
-
-    public static VoronoiCellState isPathState = new VoronoiCellState(
-        new Color( 0.8f, 0.1f, 0.1f ), // 红
-        new Color( 1f, 1f, 1f )
-    );
 
     // =========================:
     public Color backColor;
     public Color textColor;
 
-    public VoronoiCellState( Color backColor_, Color textColor_ )
-    {
-        backColor = backColor_;
-        textColor = textColor_;
-    }
+    public VoronoiCellState(){}
+
 }
 
 

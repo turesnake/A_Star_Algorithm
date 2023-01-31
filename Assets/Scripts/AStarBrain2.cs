@@ -17,7 +17,7 @@ public class AStarBrain2 : MonoBehaviour
     public GameObject debugSphere;
     public GameObject debugBlueSphere;
     public GameObject debugGreenSphere;
-    public MeshFilter showQuad;
+    //public MeshFilter baseQuad;
     public TextMeshProUGUI baseText; 
  
 
@@ -29,6 +29,8 @@ public class AStarBrain2 : MonoBehaviour
 
     public int perlinScale = 15; // 噪声碎裂程度, 值越大越碎
     [SerializeField] int randomSeed = 123;
+
+    public bool isShowTexts = true;
  
 
     VoronoiCell srcGNode = null;
@@ -41,8 +43,6 @@ public class AStarBrain2 : MonoBehaviour
     List<VoronoiCell> foundedPath = new List<VoronoiCell>(); // 算法找出的路径
     float debugSphereRadius = 1.1f;
 
-    
-
 
 
     Dictionary<Vector2f, Site> sites;
@@ -52,7 +52,11 @@ public class AStarBrain2 : MonoBehaviour
 
     void Start() 
     {
-        Debug.Assert( debugSphere && debugBlueSphere && debugGreenSphere && showQuad );
+
+        Debug.Assert( 
+            debugSphere && debugBlueSphere && debugGreenSphere 
+            //&& baseQuad 
+        );
         Debug.Assert( baseText );
 
 
@@ -65,10 +69,8 @@ public class AStarBrain2 : MonoBehaviour
         debugSphereRadius = mapSideLength / (float)polygonSideNum * 0.3f;
         debugSphereRadius = Mathf.Min( debugSphereRadius, 1f );
  
-        // --------------------------:
-        // Create your sites (lets call that the center of your polygons)
-        List<Vector2f> points = CreateRandomPoint_2();
-
+        // ============ 初始化 Voronoi ==============:
+        List<Vector2f> points = CreateRandomPoint();
 
         // Create the bounds of the voronoi diagram
         // Use Rectf instead of Rect; it's a struct just like Rect and does pretty much the same,
@@ -77,9 +79,10 @@ public class AStarBrain2 : MonoBehaviour
         Rectf bounds = new Rectf(0,0, mapSideLength, mapSideLength );
         // There is a two ways you can create the voronoi diagram: with or without the lloyd relaxation
         // Here I used it with 2 iterations of the lloyd relaxation
-        Voronoi voronoi = new Voronoi(points,bounds,5);
+        Voronoi voronoi = new Voronoi( points, bounds, 5 );
         // -------------------------:
  
+
         // Now retreive the edges from it, and the new sites position if you used lloyd relaxtion
         // 整图中 cell 的数量;
         sites = voronoi.SitesIndexedByLocation;
@@ -133,55 +136,87 @@ public class AStarBrain2 : MonoBehaviour
         //DisplayVoronoiDiagram();
     }
 
+    bool isInCoroutine = false;
+
 
     void Update() 
     {
 
+        //StartCoroutine( Handle() );
+
         if( Input.GetMouseButtonDown(0) ) 
         {
-            Debug.Log("左键");
+            //Debug.Log("左键");
 
-            if( srcGNode!=null )
+            // 全体重置:
+            foreach( var e in voronoiCellDic )
             {
-                srcGNode.ShowBaseCell();
+                e.Value.SetState( VoronoiCellStateType.Idle );
             }
 
             srcGNode = HitCell();
 
-            foreach( var e in foundedPath )
-            {
-                e.ShowBaseCell();
-            }
-
             if( srcGNode!=null )
             {
-                srcGNode.ShowCell( new Color( 0.5f, 1f, 0f, 1f ) ); // 起点
+                srcGNode.SetState( VoronoiCellStateType.Src );
+            }
+
+            foreach( var e in voronoiCellDic )
+            {
+                e.Value.SwitchState();
             }
         }
 
 
-        if( srcGNode!=null && Input.GetMouseButton(1) ) 
+
+        if( srcGNode!=null && Input.GetMouseButton(1) && isInCoroutine == false ) 
         {
-            Debug.Log("右键");
+            //Debug.Log("右键");
             dstGNode = HitCell();
 
             if( dstGNode != null )
             {
-                dstGNode.ShowCell( new Color( 0f, 0.5f, 1f, 1f ) ); // 终点
-
-                foreach( var e in foundedPath )
-                {
-                    e.ShowBaseCell();
-                }
-
-                FindPath( srcGNode, dstGNode );
-                // 显示 path:
-                foreach( var e in foundedPath )
-                {
-                    e.ShowCell( Color.red );
-                }
+                StartCoroutine( Handle() );
             }
         }
+    }
+
+
+    IEnumerator Handle() 
+    {
+        isInCoroutine = true;
+
+        //Debug.Log( "-1-" );
+
+        //dstGNode.SetAndSwitchState( VoronoiCellStateType.Src );
+        dstGNode.SetState( VoronoiCellStateType.Src );
+
+        // 全体重置:
+        foreach( var e in voronoiCellDic )
+        {
+            //e.Value.SetAndSwitchState( VoronoiCellStateType.Idle );
+            e.Value.SetState( VoronoiCellStateType.Idle );
+        }
+
+        yield return FindPath( srcGNode, dstGNode );
+
+        // 显示 path:
+        foreach( var cell in foundedPath )
+        {
+            //cell.SetAndSwitchState( VoronoiCellStateType.IsPath );
+            cell.SetState( VoronoiCellStateType.IsPath );
+        }
+
+        foreach( var e in voronoiCellDic )
+        {
+            //e.Value.SetAndSwitchState( VoronoiCellStateType.Idle );
+            e.Value.SwitchState();
+        }
+
+        //Debug.Log( "-2-" );
+
+        isInCoroutine = false;
+        yield break;
     }
 
 
@@ -197,7 +232,7 @@ public class AStarBrain2 : MonoBehaviour
         Ray ray = camera.ScreenPointToRay(Input.mousePosition);
         if( Physics.Raycast(ray, out RaycastHit hit)  )
         {
-            Debug.Log( hit.collider.name );
+            //Debug.Log( hit.collider.name );
             
             bool compRet1 = hit.collider.TryGetComponent( out VoronoiCellComp cellComp );
             Debug.Assert( compRet1 );
@@ -209,7 +244,7 @@ public class AStarBrain2 : MonoBehaviour
 
 
 
-    private List<Vector2f> CreateRandomPoint_2() 
+    private List<Vector2f> CreateRandomPoint() 
     {
 
         Random.InitState(randomSeed);
@@ -280,8 +315,10 @@ public class AStarBrain2 : MonoBehaviour
 
 
     // ===============================================================:
-    // A* 算法本体
-    void FindPath( VoronoiCell srcNode_, VoronoiCell dstNode_ ) 
+    //                        A* 算法本体
+    // ===============================================================:
+    //void FindPath( VoronoiCell srcNode_, VoronoiCell dstNode_ ) 
+    IEnumerator FindPath( VoronoiCell srcNode_, VoronoiCell dstNode_ ) 
     {
 
         List<VoronoiCell> toSearch = new List<VoronoiCell>(){ srcNode_ };
@@ -292,7 +329,7 @@ public class AStarBrain2 : MonoBehaviour
 
         while( toSearch.Count > 0 ) 
         {
-            // 找出 toSearch 中最近的节点:
+            // 找出 toSearch 中 离 dst 最近的节点:
             VoronoiCell current = toSearch[0];
             foreach( var e in toSearch )
             {
@@ -300,6 +337,12 @@ public class AStarBrain2 : MonoBehaviour
                 {
                     current = e;
                 }
+            }
+
+            // 遍历到 dst 时即可终止:
+            if( current == dstNode_ )
+            {
+                break;
             }
 
             processed.Add( current );
@@ -314,7 +357,7 @@ public class AStarBrain2 : MonoBehaviour
 
                 bool isNeighborInToSearch = toSearch.Contains( neighbor );
 
-                float costToNeighbor = current.G + Utils.CalcDistance(current,neighbor);
+                float costToNeighbor = current.G + current.weight + Utils.CalcDistance(current,neighbor);
 
                 var ddis = Utils.CalcDistance(current,neighbor);
                 minDis = Mathf.Min( minDis, ddis );
@@ -334,9 +377,28 @@ public class AStarBrain2 : MonoBehaviour
                     }
                 }
             }
+
+            // foreach( var e in toSearch )
+            // {   
+            //     e.SetAndSwitchState( VoronoiCellStateType.OnSearching );
+            // }
+            // foreach( var e in processed ) 
+            // {
+            //     e.SetAndSwitchState( VoronoiCellStateType.Processed );
+            // }
+            // yield return null;
         }
 
-        Debug.Log( "minDis = " + minDis + "; maxDis = " + maxDis );
+            foreach( var e in toSearch )
+            {   
+                e.SetState( VoronoiCellStateType.OnSearching );
+            }
+            foreach( var e in processed ) 
+            {
+                e.SetState( VoronoiCellStateType.Processed );
+            }
+
+        //Debug.Log( "minDis = " + minDis + "; maxDis = " + maxDis );
 
         // 找到路径:
         foundedPath.Clear();
@@ -348,6 +410,8 @@ public class AStarBrain2 : MonoBehaviour
         }
         foundedPath.Reverse();
         Debug.Log( "foundedPath count = " + foundedPath.Count );
+
+        yield break;
     }
 
 

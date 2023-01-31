@@ -47,6 +47,8 @@ public class VoronoiCell
 
     public float pNoise; // [0f,1f]
 
+    public float weight;
+
     Transform worldCanvasTF;
 
 
@@ -55,7 +57,7 @@ public class VoronoiCell
     MeshCollider    mCollider; // newQuad 
 
 
-    TextMeshProUGUI text_G, text_H, text_F;
+    TextMeshProUGUI text_W, text_G, text_H, text_F;
 
 
 
@@ -63,6 +65,8 @@ public class VoronoiCell
 
 
     Color baseColor;
+
+    VoronoiCellStateType currentStateType = VoronoiCellStateType.Idle;
 
 
     public VoronoiCell( AStarBrain2 brain_, Site site_, bool isBorder_ )
@@ -74,18 +78,29 @@ public class VoronoiCell
         
         CalcPerlinNoise(); 
 
-        G = (1-pNoise) * 10f; // tmp 
+        weight = (1-pNoise) * 300f;
+
+        //G = (1-pNoise) * 10f; // tmp 
         //Debug.Log( "G = " + G );
+        G = 1f;
         //G = 1f;
 
         GetSiteVertics();
 
         CreateTexts();
+
+        // todo: 根据 weight 设置颜色:
+        float c = Mathf.Lerp( pNoise, 1f, 0.3f );
+        baseColor = new Color( c, c, c, 1f );
+
+        SwitchState( VoronoiCellStateType.Idle );
     }
+
+
 
     public bool Walkable()
     {
-        return (pNoise > 0.5f);
+        return (pNoise > 0.2f);
         //return true;
     }
 
@@ -99,7 +114,7 @@ public class VoronoiCell
         float p1 = 1f - Mathf.PerlinNoise( x * sclae1, z * sclae1 );
 
         // 疯狂的 smooth 来让曲线在 [0f,1f] 区间无限接近 0f 和 1f, 两级分明
-        for( int i=0; i<13; i++ )
+        for( int i=0; i<5; i++ ) // 13
         {
             p1 = Mathf.SmoothStep( 0f, 1f, p1 );
         }
@@ -113,10 +128,15 @@ public class VoronoiCell
     void CreateTexts() 
     {
         worldCanvasTF = brain.baseText.transform.parent;
+
+        if( brain.isShowTexts )
+        {
+            text_W = CreateSingleText( VoronoiCellTextData.ui_W_data );
+            text_G = CreateSingleText( VoronoiCellTextData.ui_G_data );
+            text_H = CreateSingleText( VoronoiCellTextData.ui_H_data );
+            text_F = CreateSingleText( VoronoiCellTextData.ui_F_data );
+        }
         
-        text_G = CreateSingleText( VoronoiCellTextData.ui_G_data );
-        text_H = CreateSingleText( VoronoiCellTextData.ui_H_data );
-        text_F = CreateSingleText( VoronoiCellTextData.ui_F_data );
     }
 
 
@@ -126,6 +146,7 @@ public class VoronoiCell
 
         var go = Object.Instantiate( brain.baseText.gameObject, _pos, Quaternion.Euler( 90f,0f,0f ), worldCanvasTF );
         go.transform.localScale *= textData_.localScale;
+        go.SetActive( brain.isShowTexts );
 
         bool ret1 = go.TryGetComponent( out TextMeshProUGUI textComp );
         Debug.Assert( ret1 );
@@ -150,34 +171,36 @@ public class VoronoiCell
         }
 
         // 准备数据:
-        var edges =  site.Edges;
-
-        var newQuad = Object.Instantiate( brain.showQuad.gameObject, Vector3.zero, Quaternion.identity, parentTF );
+        GameObject newQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);// 自带 MeshCollider
+        var newQuadTF = newQuad.transform;
         newQuad.name = "cell_" + idx;
+        newQuadTF.parent = parentTF;
+        newQuadTF.position = position;
+        VoronoiCellComp cellComp = newQuad.AddComponent<VoronoiCellComp>();
+        cellComp.cell = this;
+
         bool compRet1 = newQuad.TryGetComponent( out mRenderer );
         bool compRet2 = newQuad.TryGetComponent( out mFilter );
         bool compRet3 = newQuad.TryGetComponent( out mCollider );
-        bool compRet4 = newQuad.TryGetComponent( out VoronoiCellComp cellComp );
-        Debug.Assert( compRet1 && compRet2 && compRet3 && compRet4 );
+        Debug.Assert( compRet1 && compRet2 && compRet3 );
         var material = mRenderer.material; // todo: 暂不关心它的释放问题
 
-        cellComp.cell = this;
 
         // ----
-        List<Vector3> verticesA = new List<Vector3>(){ position }; // 找出 testSite 的一圈顶点
-
+        List<Vector3> verticesA = new List<Vector3>(){ Vector3.zero }; // 找出 testSite 的一圈顶点
         foreach( var e in site.Edges ) 
         {            
             if (e.ClippedEnds == null) continue;
             Vector3 ll = Utils.Vector2f_2_Vector3(e.ClippedEnds[LR.LEFT]);
             Vector3 rr = Utils.Vector2f_2_Vector3(e.ClippedEnds[LR.RIGHT]);
 
-
             ll = Vector3.Lerp( ll, position, 0.1f );
             rr = Vector3.Lerp( rr, position, 0.1f );
             ll.y = ll.y + 0.01f;
             rr.y = rr.y + 0.01f;
 
+            ll -= position; // objectPos
+            rr -= position; // objectPos
 
             if( e.LeftSite.CompareTo( site ) == 0 )
             {   
@@ -192,7 +215,7 @@ public class VoronoiCell
         }
 
         //---: 
-        var mesh = new Mesh { name = "Procedural Mesh " + site.SiteIndex };
+        var mesh = new Mesh { name = "cell_Mesh_" + site.SiteIndex };
 
         mesh.vertices = verticesA.ToArray();
 
@@ -214,27 +237,48 @@ public class VoronoiCell
         // 绑定:
         mFilter.mesh = mesh;
         mCollider.sharedMesh = mesh;
-
-
-        // todo: 根据 weight 设置颜色:
-        float c = Mathf.Lerp( pNoise, 1f, 0.3f );
-        baseColor = new Color( c, c, c, 1f );
-        //var color = new Color( 0.8f, 0.6f, 0.2f, 1f );
-        //material.SetColor( "_BaseColor", color );
-        ShowBaseCell();
     }
 
-    public void ShowBaseCell()
-    {
-        mRenderer.material.SetColor( "_BaseColor", baseColor );
-    }
-
-
-    public void ShowCell( Color color_ )
-    {
-        mRenderer.material.SetColor( "_BaseColor", color_ );
-    }
     
+
+    public void SetAndSwitchState( VoronoiCellStateType type_ ) 
+    {
+        SetState( type_ );
+        SwitchState( type_ );
+    }
+
+    public void SetState( VoronoiCellStateType type_ ) 
+    {
+        currentStateType = type_;
+    }
+
+    public void SwitchState()
+    {
+        SwitchState( currentStateType );
+    }
+
+    public void SwitchState( VoronoiCellStateType type_ )
+    {
+        var backColor = (type_ == VoronoiCellStateType.Idle) ? baseColor : VoronoiCellState.states[type_].backColor;
+        var textColor = VoronoiCellState.states[type_].textColor;
+        mRenderer.material.SetColor( "_BaseColor", backColor );
+
+        if( brain.isShowTexts )
+        {
+            text_W.color = textColor;
+            text_G.color = textColor;
+            text_H.color = textColor;
+            text_F.color = textColor;
+
+            //---:
+            text_W.text = weight.ToString("0.0");
+            text_G.text = G.ToString("0.0");
+            text_H.text = H.ToString("0.0");
+            text_F.text = F.ToString("0.0");
+        }
+    }
+
+
 
 
 }

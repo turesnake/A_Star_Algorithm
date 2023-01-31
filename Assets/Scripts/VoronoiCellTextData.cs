@@ -10,24 +10,34 @@ public class VoronoiCellTextData
 {
     
     // =====================:
-    static public VoronoiCellTextData ui_G_data = new VoronoiCellTextData( 
-        new Vector3( -0.4f, 0.1f, 0.4f ),
-        0.9f,
-        0.07f
-    );
+    static public VoronoiCellTextData ui_W_data = new VoronoiCellTextData()
+    {
+        posOffset  = new Vector3( 0f, 0.1f, 0.6f ),
+        localScale = 0.85f,
+        fontScale  = 0.05f
+    };
+    static public VoronoiCellTextData ui_G_data = new VoronoiCellTextData()
+    { 
+        posOffset  = new Vector3( -0.4f, 0.1f, -0.1f ),
+        localScale = 0.9f,
+        fontScale  = 0.05f
+    };
 
-    static public VoronoiCellTextData ui_H_data = new VoronoiCellTextData( 
-        new Vector3( 0.4f, 0.1f, 0.4f ),
-        0.9f,
-        0.07f
-    );
+    static public VoronoiCellTextData ui_H_data = new VoronoiCellTextData()
+    {
+        posOffset  = new Vector3( 0.4f, 0.1f, 0.3f ),
+        localScale = 0.9f,
+        fontScale  = 0.05f
+    };
 
-    static public VoronoiCellTextData ui_F_data = new VoronoiCellTextData( 
-        new Vector3( 0f, 0.1f, -0.4f ),
-        1.2f,
-        0.07f
-    );
+    static public VoronoiCellTextData ui_F_data = new VoronoiCellTextData()
+    { 
+        posOffset  = new Vector3( 0.2f, 0.1f, -0.6f ),
+        localScale = 1.1f,
+        fontScale  = 0.05f
+    };
 
+    
 
 
     // =====================:
@@ -37,17 +47,11 @@ public class VoronoiCellTextData
     public float fontScale;
 
 
-    // =====================:
-    public VoronoiCellTextData( Vector3 posOffset_, float localScale_, float fontScale_ )
-    {
-        posOffset = posOffset_;
-        localScale = localScale_;
-        fontScale = fontScale_;
-    }
+    public VoronoiCellTextData(){}
 
     public Vector3 GetPos( Vector3 parentPos_, float entSideHalfLength_ )
     {
-        float innScale = 0.6f;
+        float innScale = 0.9f;
         return parentPos_ + posOffset * entSideHalfLength_ * innScale;
     }
 }
